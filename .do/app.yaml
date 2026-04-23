@@ -1,0 +1,46 @@
+name: agentforge-linkedin
+region: nyc
+services:
+  - name: backend
+    github:
+      repo: YOUR_GITHUB_USERNAME/YOUR_REPO_NAME
+      branch: main
+      deploy_on_push: true
+    source_dir: /backend
+    environment_slug: python
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    run_command: python LinkedinRun.py server
+    health_check:
+      http_path: /health
+    envs:
+      - key: GOOGLE_API_KEY
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: CLIENT_ID
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: CLIENT_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+      - key: REDIRECT_URI
+        scope: RUN_AND_BUILD_TIME
+        value: ${backend.PUBLIC_URL}/callback
+      - key: FRONTEND_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${frontend.PUBLIC_URL}
+
+static_sites:
+  - name: frontend
+    github:
+      repo: YOUR_GITHUB_USERNAME/YOUR_REPO_NAME
+      branch: main
+      deploy_on_push: true
+    source_dir: /frontend
+    build_command: npm run build
+    output_dir: /dist
+    envs:
+      - key: VITE_API_BASE_URL
+        scope: BUILD_TIME
+        value: ${backend.PUBLIC_URL}
