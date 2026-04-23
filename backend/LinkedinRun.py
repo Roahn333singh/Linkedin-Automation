@@ -28,13 +28,17 @@ load_dotenv()
 GOOGLE_API_KEY=os.getenv('GOOGLE_API_KEY')
 # create a linkedin post on developing concern for software developer with the inhancement andinnovation in the field of agentic coding
 
-os.environ["LANGCHAIN_TRACING_V2"] = "true"
-os.environ["LANGCHAIN_PROJECT"] = "LangGraph-Linkedin"
-os.environ["LANGCHAIN_CALLBACKS_BACKGROUND"] = "true"
-
-print(" LangSmith Observability: ON")
-print(f"   Project: {os.environ.get('LANGCHAIN_PROJECT')}")
-print(f"   Tracing: {os.environ.get('LANGCHAIN_TRACING_V2')}")
+langsmith_api_key = os.getenv("LANGSMITH_API_KEY", "").strip()
+if langsmith_api_key:
+    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+    os.environ.setdefault("LANGCHAIN_PROJECT", "LangGraph-Linkedin")
+    os.environ.setdefault("LANGCHAIN_CALLBACKS_BACKGROUND", "true")
+    print(" LangSmith Observability: ON")
+    print(f"   Project: {os.environ.get('LANGCHAIN_PROJECT')}")
+    print(f"   Tracing: {os.environ.get('LANGCHAIN_TRACING_V2')}")
+else:
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+    print(" LangSmith Observability: OFF (no LANGSMITH_API_KEY)")
 
 
 llm = ChatGoogleGenerativeAI(
@@ -551,6 +555,29 @@ def resume_workflow(thread_id: str, reply: str):
         
         # Check current state
         current_state = workflow.get_state(config)
+
+        # If agent produced a draft directly (without interrupt/tool call),
+        # return it in the same shape the frontend expects.
+        if "agent" in last_event:
+            agent_messages = last_event["agent"].get("messages", [])
+            if agent_messages:
+                last_msg = agent_messages[-1]
+                if hasattr(last_msg, "content"):
+                    content = last_msg.content
+                    if isinstance(content, list):
+                        text_chunks = []
+                        for part in content:
+                            if isinstance(part, dict) and part.get("type") == "text":
+                                text_chunks.append(part.get("text", ""))
+                        content = "\n".join(chunk for chunk in text_chunks if chunk).strip()
+                    if isinstance(content, str) and content.strip():
+                        return {
+                            "thread_id": thread_id,
+                            "status": "awaiting_approval",
+                            "generated_post": content,
+                            "action_required": "Reply with 'yes' to approve or 'no' to provide feedback",
+                            "next_step": f"POST /resume?thread_id={thread_id}&reply=yes (or no)"
+                        }
         
         return {
             "thread_id": thread_id,
